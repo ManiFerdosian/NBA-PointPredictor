@@ -1,250 +1,158 @@
-# Containerized NBA Points Over/Under Predictor
+NBA Over/Under Predictor 
 
-A complete end-to-end machine learning system that predicts whether an NBA player will score over or under a chosen points line in a single game. The system uses SQL for data storage, PyTorch for machine learning, and FastAPI for the REST API, all running in a Docker container.
+1) Executive Summary
+Problem
 
-## Executive Summary
+Sports bettors, fantasy basketball players, and fans often want to estimate whether a player will score over or under a target point line in their next game. Manually analyzing recent performance is time-consuming and error-prone.
 
-This project implements a binary classification model to predict NBA player performance relative to a points line. The system processes historical NBA box score data, trains a neural network model, and exposes predictions through a RESTful API. The entire application runs in a single Docker container, making it easy to deploy and test.
+Solution
 
-**Problem**: Predict whether an NBA player will score over or under a specified points line in a game.
+This project provides a deployed web application that predicts the probability a player scores over 30 points in their next game. The system uses recent game averages, a trained PyTorch model, and a clean, interactive FastAPI web interface. Users select a player, click Predict, and immediately see both the prediction and the supporting game statistics, making the model’s reasoning transparent.
 
-**Solution**: A containerized ML system with:
-- SQLite database for historical game data
-- PyTorch neural network for predictions
-- FastAPI REST API for inference
-- Complete Docker containerization
+2) System Overview
+Course Concepts Used
 
-## System Overview
+FastAPI Web Services (Module: Web Services)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Container                          │
-│                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   Data       │    │   Training   │    │   REST API   │  │
-│  │  Pipeline    │───▶│   Script     │───▶│   (FastAPI)  │  │
-│  │              │    │              │    │              │  │
-│  │ CSV → SQLite │    │ PyTorch Model│    │ /predict     │  │
-│  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         │                    │                    │          │
-│         └────────────────────┴────────────────────┘          │
-│                              │                               │
-│                    ┌─────────▼─────────┐                    │
-│                    │   SQLite Database │                    │
-│                    │  (db.nba.sqlite)  │                    │
-│                    └───────────────────┘                    │
-└─────────────────────────────────────────────────────────────┘
-```
+SQLite Database Integration (Module: Databases)
 
-### Components
+Docker Containerization (Module: DevOps & Containers)
 
-1. **Data Pipeline** (`src/data_pipeline/load_nba_data.py`)
-   - Loads CSV data from `assets/nba_player_games_sample.csv`
-   - Cleans and validates data
-   - Creates SQLite database with `player_games` table
-   - Generates binary labels (over_20: 1 if points >= 20, else 0)
+PyTorch Modeling (Module: Machine Learning)
 
-2. **ML Model** (`src/ml/`)
-   - Feedforward neural network: Linear → ReLU → Linear → Sigmoid
-   - Binary cross-entropy loss, Adam optimizer
-   - Trained on 6 features: minutes, rebounds, assists, field_goals_attempted, three_pa, free_throws_attempted
-   - Saves trained weights to `models/nba_over20_model.pt`
+Cloud Deployment via Azure App Service (Module: Cloud Deployment)
 
-3. **REST API** (`src/api/main.py`)
-   - FastAPI application with Uvicorn server
-   - Endpoints: `/health`, `/predict`, `/example`
-   - Accepts feature vectors and points line, returns probability and prediction
+Architecture Diagram
+┌──────────────────────┐          HTTP Requests         ┌──────────────────────────┐
+│                      │ ─────────────────────────────▶ │                          │
+│   User Web Browser   │                                │      FastAPI Backend     │
+│  (index.html + JS)   │ ◀───────────────────────────── │   (API + UI Rendering)   │
+└──────────────────────┘          JSON Responses         └──────────┬──────────────┘
+                                                                      │
+                                                                      │
+                                                                      ▼
+                                                          ┌──────────────────────────┐
+                                                          │   PyTorch Model (.pt)    │
+                                                          │  Predicts Over/Under 30  │
+                                                          └──────────────────────────┘
+                                                                      │
+                                                                      ▼
+                                                          ┌──────────────────────────┐
+                                                          │      SQLite Database     │
+                                                          │  (Historical Game Logs)  │
+                                                          └──────────────────────────┘                                                       
 
-## Quick Start
+![Architecture Diagram](assets/architecture.png)
+Then, it is wrapped and deployed in Docker and Azure   
 
-### Prerequisites
+Data, Models & Services
 
-- Docker installed and running
-- Git (optional, for cloning)
+Data Source: Synthetic + curated NBA game log dataset
 
-### Running with Docker
+Size: ~1000 game rows, ~140 players
 
-1. **Clone or navigate to the project directory:**
-   ```bash
-   cd nba-overunder-api
-   ```
+Format: CSV → Loaded into SQLite DB (data/db.nba.sqlite)
 
-2. **Create a `.env` file** (copy from `.env.example`):
-   ```bash
-   API_PORT=8080
-   DB_PATH=data/db.nba.sqlite
-   MODEL_PATH=models/nba_over20_model.pt
-   LOG_LEVEL=info
-   ```
+Model: PyTorch binary classifier (predict Over 30 points)
 
-3. **Build and run using the provided script:**
-   ```bash
-   chmod +x run.sh
-   ./run.sh
-   ```
+Services: FastAPI backend, HTML/JS frontend, JSON API routes
 
-   Or manually:
-   ```bash
-   docker build -t nba-overunder-api:latest .
-   docker run --rm -p 8080:8080 --env-file .env nba-overunder-api:latest
-   ```
+License: Educational use only (synthetic and curated data)
 
-4. **Test the API:**
-   ```bash
-   # Health check
-   curl http://localhost:8080/health
-   
-   # Get example request
-   curl http://localhost:8080/example
-   
-   # Make a prediction
-   curl -X POST http://localhost:8080/predict \
-     -H "Content-Type: application/json" \
-     -d '{
-       "player_name": "LeBron James",
-       "points_line": 20,
-       "features": {
-         "minutes": 34.5,
-         "rebounds": 8.0,
-         "assists": 7.2,
-         "field_goals_attempted": 18,
-         "three_pa": 6,
-         "free_throws_attempted": 6
-       }
-     }'
-   ```
+3) How to Run (Local)
+Using Docker (recommended)
+# build the image
+docker build -t nba-predictor:latest .
 
-### Running Tests
+# run container
+docker run --rm -p 8090:8090 --env-file .env nba-predictor:latest
 
-Run pytest tests locally (requires Python environment):
+# health check
+curl http://localhost:8090/health
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+Without Docker (developer mode)
+uvicorn src.api.main:app --host 0.0.0.0 --port 8090
 
-# Run tests
-pytest tests/
-```
+4) Design Decisions
+Why this approach?
 
-## API Endpoints
+FastAPI → simple routing, built-in docs, easy JSON APIs
 
-### GET `/health`
+PyTorch → flexible training and clean model export
 
-Health check endpoint.
+SQLite → lightweight database ideal for containerization
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "model_loaded": true,
-  "db_connected": true
-}
-```
+Docker → guarantees “it works everywhere”
 
-### POST `/predict`
+Azure App Service → one-click deployment for containerized apps
 
-Predict whether a player will go over or under the points line.
+Alternatives Considered
 
-**Request:**
-```json
-{
-  "player_name": "LeBron James",
-  "points_line": 20,
-  "features": {
-    "minutes": 34.5,
-    "rebounds": 8.0,
-    "assists": 7.2,
-    "field_goals_attempted": 18,
-    "three_pa": 6,
-    "free_throws_attempted": 6
-  }
-}
-```
+Flask (simpler but less structured than FastAPI)
 
-**Response:**
-```json
-{
-  "prob_over": 0.73,
-  "prediction": "over",
-  "points_line": 20
-}
-```
+PostgreSQL (more powerful, unnecessary for small datasets)
 
-### GET `/example`
+Real-time NBA API Scraping (out of scope + rate limits + API keys)
 
-Returns an example request body for the `/predict` endpoint.
+Tradeoffs
 
-## Design Decisions
+Performance: Lightweight model; inference is instantaneous
 
-1. **SQLite over PostgreSQL**: Chosen for simplicity and single-file deployment. Perfect for this small-scale project.
+Cost: Azure App Service free tier sufficient
 
-2. **Fixed 20-point training line**: The model is trained on a binary classification task (over/under 20 points). For inference with different lines, we adjust the prediction threshold heuristically.
+Complexity: Building DB + model pipeline adds initial work
 
-3. **Simple neural network architecture**: A small feedforward network (6 inputs → 32 hidden → 1 output) is sufficient for this tabular data problem and trains quickly on CPU.
+Maintainability: Synthetic dataset → predictable but not real-time
 
-4. **Feature vector in request**: For simplicity, features are passed directly in the API request rather than looking up player statistics. This keeps the API stateless and fast.
+Security & Privacy
 
-5. **Docker build-time training**: The model is trained during the Docker build process, ensuring the container always has a trained model ready. This trades flexibility for reproducibility.
+No PII collected
 
-6. **FastAPI over Flask**: FastAPI provides automatic OpenAPI documentation, better type validation with Pydantic, and async support out of the box.
+No user accounts
 
-## Project Structure
+No secrets in code (environment variables used via .env)
 
-```
-nba-overunder-api/
-├── src/
-│   ├── data_pipeline/
-│   │   └── load_nba_data.py      # CSV to SQLite pipeline
-│   ├── ml/
-│   │   ├── model.py               # PyTorch model definition
-│   │   └── train_model.py         # Training script
-│   └── api/
-│       └── main.py                # FastAPI application
-├── assets/
-│   └── nba_player_games_sample.csv  # Sample NBA data
-├── tests/
-│   └── test_api.py                # Pytest smoke tests
-├── models/                         # Trained model storage
-├── data/                           # SQLite database storage
-├── Dockerfile                      # Container definition
-├── requirements.txt               # Python dependencies
-├── .env.example                    # Environment variable template
-├── run.sh                          # One-liner launcher
-├── .gitignore                      # Git ignore rules
-├── LICENSE                         # MIT License
-└── README.md                       # This file
-```
+Input validation handled by Pydantic
 
-## Environment Variables
+Ops Considerations
 
-- `API_PORT`: Port for the FastAPI server (default: 8080)
-- `DB_PATH`: Path to SQLite database file (default: data/db.nba.sqlite)
-- `MODEL_PATH`: Path to trained PyTorch model (default: models/nba_over20_model.pt)
-- `LOG_LEVEL`: Logging level (default: info)
+Health endpoint: /health
 
-## Cloud Deployment
+Evaluation endpoint: /evaluate (metrics + dataset stats)
 
-The application is designed to be cloud-ready:
+Logs: Handled by Uvicorn and Azure App Service
 
-- Listens on `0.0.0.0` (all interfaces)
-- Port configurable via environment variable
-- No hardcoded local paths
-- Stateless API design
+Limitations:
 
-**Compatible with:**
-- Azure Web App for Containers
-- Render
-- Railway
-- Any container platform
+Model trained on static dataset
 
-## Course Concepts Demonstrated
+Does not pull live NBA performance data
 
-✅ **SQL and relational data**: SQLite database with structured player_games table  
-✅ **Scripting and data pipelines**: Automated CSV to SQL pipeline  
-✅ **Containerization with Docker**: Complete Docker setup with single-command run  
-✅ **Optional logging and metrics**: Health check endpoint with status information  
+Predicts only “Over 30 Points”
 
-## License
+5) Results & Evaluation
+Model Performance
 
-MIT License - see LICENSE file for details.
+![UI Screenshot](assets/ui.png)
+![UI Screenshot](assets/ui2.png)
 
+Validation
+
+Model tested on a separate evaluation set
+
+FastAPI tested via /docs + manual UI testing
+
+Database integrity verified at app startup
+
+6) What’s Next
+Planned Improvements
+
+Add live NBA API integration
+
+Predict additional stats (rebounds, assists, fantasy score)
+
+Multi-threshold predictions (Over 20, 25, 30, 35…)
+
+Add visual charts of historical player performance
+
+Add CI/CD pipeline for Azure deployments

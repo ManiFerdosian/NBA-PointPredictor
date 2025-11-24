@@ -54,12 +54,15 @@
             font-weight: bold;
             color: #333;
         }
-        input[type="text"],
-        input[type="number"] {
+        input[type="number"],
+        select {
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+        }
+        select {
+            width: 100%;
         }
         button {
             background-color: #007bff;
@@ -103,14 +106,33 @@
             color: #cc0000;
             margin-top: 10px;
         }
+        .averaged-features {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .averaged-features h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .feature-item {
+            color: #666;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>NBA Over Under Predictor</h1>
         <p class="description">
-            This application predicts whether an NBA player will score over or under a specified points line 
-            based on their game statistics. Enter the player's information and statistics below to get a prediction.
+            Select a player to estimate the chance they score over 30 points in their next game. The model uses game averages.
         </p>
 
         <div id="healthStatus" class="health-status">
@@ -119,36 +141,10 @@
 
         <form id="predictionForm">
             <div class="form-group">
-                <label for="player_name">Player Name:</label>
-                <input type="text" id="player_name" name="player_name" required>
-            </div>
-            <div class="form-group">
-                <label for="points_line">Points Line:</label>
-                <input type="number" id="points_line" name="points_line" step="0.5" required>
-            </div>
-            <div class="form-group">
-                <label for="minutes">Minutes:</label>
-                <input type="number" id="minutes" name="minutes" step="0.1" required>
-            </div>
-            <div class="form-group">
-                <label for="rebounds">Rebounds:</label>
-                <input type="number" id="rebounds" name="rebounds" step="0.1" required>
-            </div>
-            <div class="form-group">
-                <label for="assists">Assists:</label>
-                <input type="number" id="assists" name="assists" step="0.1" required>
-            </div>
-            <div class="form-group">
-                <label for="field_goals_attempted">Field Goals Attempted:</label>
-                <input type="number" id="field_goals_attempted" name="field_goals_attempted" step="0.1" required>
-            </div>
-            <div class="form-group">
-                <label for="three_pa">Three Point Attempts:</label>
-                <input type="number" id="three_pa" name="three_pa" step="0.1" required>
-            </div>
-            <div class="form-group">
-                <label for="free_throws_attempted">Free Throws Attempted:</label>
-                <input type="number" id="free_throws_attempted" name="free_throws_attempted" step="0.1" required>
+                <label for="player_name">Player:</label>
+                <select id="player_name" name="player_name" required>
+                    <option value="">Loading players...</option>
+                </select>
             </div>
             <button type="submit" id="predictButton">Predict</button>
         </form>
@@ -161,8 +157,10 @@
             <div class="result-item">
                 <strong>Prediction:</strong> <span id="prediction"></span>
             </div>
-            <div class="result-item">
-                <strong>Points Line:</strong> <span id="pointsLine"></span>
+            <div class="averaged-features">
+                <h4>Average Stats Used (Last 10 Games):</h4>
+                <div class="features-grid" id="averagedFeatures">
+                </div>
             </div>
         </div>
 
@@ -190,6 +188,33 @@
             }
         }
 
+        // Load players and populate dropdown
+        async function loadPlayers() {
+            const playerSelect = document.getElementById('player_name');
+            try {
+                const response = await fetch('/players');
+                const data = await response.json();
+                
+                // Clear existing options
+                playerSelect.innerHTML = '<option value="">Select a player...</option>';
+                
+                // Add players to dropdown
+                if (data.players && data.players.length > 0) {
+                    data.players.forEach(player => {
+                        const option = document.createElement('option');
+                        option.value = player;
+                        option.textContent = player;
+                        playerSelect.appendChild(option);
+                    });
+                } else {
+                    playerSelect.innerHTML = '<option value="">No players found</option>';
+                }
+            } catch (error) {
+                playerSelect.innerHTML = '<option value="">Error loading players</option>';
+                console.error('Error loading players:', error);
+            }
+        }
+
         // Handle form submission
         document.getElementById('predictionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -204,18 +229,9 @@
             button.disabled = true;
             button.textContent = 'Predicting...';
             
-            // Build request body
+            // Build request body (only player_name)
             const requestBody = {
-                player_name: document.getElementById('player_name').value,
-                points_line: parseFloat(document.getElementById('points_line').value),
-                features: {
-                    minutes: parseFloat(document.getElementById('minutes').value),
-                    rebounds: parseFloat(document.getElementById('rebounds').value),
-                    assists: parseFloat(document.getElementById('assists').value),
-                    field_goals_attempted: parseFloat(document.getElementById('field_goals_attempted').value),
-                    three_pa: parseFloat(document.getElementById('three_pa').value),
-                    free_throws_attempted: parseFloat(document.getElementById('free_throws_attempted').value)
-                }
+                player_name: document.getElementById('player_name').value
             };
             
             try {
@@ -237,7 +253,21 @@
                 // Display results
                 document.getElementById('probOver').textContent = (data.prob_over * 100).toFixed(2) + '%';
                 document.getElementById('prediction').textContent = data.prediction.toUpperCase();
-                document.getElementById('pointsLine').textContent = data.points_line;
+                
+                // Display averaged features
+                const featuresDiv = document.getElementById('averagedFeatures');
+                if (data.averaged_features) {
+                    const features = data.averaged_features;
+                    featuresDiv.innerHTML = `
+                        <div class="feature-item"><strong>Minutes:</strong> ${features.minutes.toFixed(1)}</div>
+                        <div class="feature-item"><strong>Rebounds:</strong> ${features.rebounds.toFixed(1)}</div>
+                        <div class="feature-item"><strong>Assists:</strong> ${features.assists.toFixed(1)}</div>
+                        <div class="feature-item"><strong>Field Goals Attempted:</strong> ${features.field_goals_attempted.toFixed(1)}</div>
+                        <div class="feature-item"><strong>Three Point Attempts:</strong> ${features.three_pa.toFixed(1)}</div>
+                        <div class="feature-item"><strong>Free Throws Attempted:</strong> ${features.free_throws_attempted.toFixed(1)}</div>
+                    `;
+                }
+                
                 resultDiv.classList.add('show');
                 
             } catch (error) {
@@ -248,9 +278,9 @@
             }
         });
         
-        // Load health status when page loads
+        // Load health status and players when page loads
         loadHealthStatus();
+        loadPlayers();
     </script>
 </body>
 </html>
-

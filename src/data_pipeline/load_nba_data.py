@@ -41,8 +41,11 @@ def load_nba_data(csv_path: str, db_path: str):
     if dropped_rows > 0:
         print(f"Dropped {dropped_rows} rows with missing values.")
     
-    # Create label column: over_20 (1 if points >= 20, else 0)
-    df['over_20'] = (df['points'] >= 20).astype(int)
+    # Create label column: over_20 (1 if points > 30, else 0)
+    # Note: Column name kept as 'over_20' for compatibility, but threshold is now 30
+    TARGET_LINE = 30
+    df['over_20'] = (df['points'] > TARGET_LINE).astype(int)
+    print(f"Labeling threshold: {TARGET_LINE} points")
     
     # Connect to SQLite database
     conn = sqlite3.connect(db_path)
@@ -91,7 +94,7 @@ def load_nba_data(csv_path: str, db_path: str):
 if __name__ == "__main__":
     # Get paths relative to project root
     project_root = Path(__file__).parent.parent.parent
-    csv_path = project_root / "assets" / "nba_player_games_sample.csv"
+    csv_path = project_root / "assets" / "nbaplayers_500games.csv"
     db_path = project_root / "data" / "db.nba.sqlite"
     
     load_nba_data(str(csv_path), str(db_path))

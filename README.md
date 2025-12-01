@@ -40,10 +40,34 @@ Services: FastAPI backend, HTML/JS frontend, JSON API routes
 
 License: Educational use only (synthetic and curated data)
 
-# 3) How to Run (Local)
-Using Docker (recommended)
+# 3) How to Run 
+### One-Time Setup: Initialize the SQLite Database
 
-# Build the image
+Before building and running the Docker container, you need to create the local
+SQLite database that the API uses. This project does **not** create the DB at
+container startup, so if you skip this step the UI will show:
+
+`API Status: ok, Model Loaded: true, Database Connected: false`
+
+To initialize the database:
+
+1. Make sure you have a Python environment with the dependencies installed:
+
+   ```bash
+   pip install -r requirements.txt
+2. From the project root, run the data loading script once to build the DB:
+   ```bash
+   python -m src.data_pipeline.load_nba_data
+This will: 
+- Read the CSV in assets/nbaplayers_500games.csv
+- Create (or overwrite) data/db.nba.sqlite
+- Populate the games and player_averages tables
+  
+3. Confirm that data/db.nba.sqlite now exists in the data/ folder. After this one-time step, you can build and run the Docker image
+
+
+# Build the image using docker (recommended)
+
 docker build -t nba-predictor:latest .
 
 # Run container
